@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>In-Play 1H AH Scanner</title>
+  <style>
+    :root{--bg:#0b1220;--fg:#e6edf3;--muted:#9aa7b3;--card:#131b2e;--accent:#4fc3f7;--tag:#202a44}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,Segoe UI,Arial}
+    header{padding:16px 20px;border-bottom:1px solid #1e2a44;background:#0f1830;position:sticky;top:0}
+    h1{font-size:18px;margin:0}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+    table{width:100%;border-collapse:collapse;background:var(--card);border-radius:8px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px solid #1e2a44}
+    th{font-weight:600;text-align:left;color:#c9d7e1;background:#101a33}
+    tr:hover td{background:#0f1730}
+    .muted{color:var(--muted)}
+    .tag{background:var(--tag);color:#cbe6ff;padding:2px 6px;border-radius:6px;font-weight:600}
+    footer{color:var(--muted);font-size:12px;padding:12px 20px;text-align:center}
+    .empty{padding:12px 0}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>In‑Play Scanner • 1H • 0–0 @ 27’–45’ • Home AH ≤ −1.0 • OU(1H) ≥ 1.25</h1>
+  </header>
+  <div class="wrap">
+    <div id="status" class="muted">Đang tải dữ liệu…</div>
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>Giải</th><th>Phút</th><th>Tỷ số</th><th>Trận</th>
+          <th>1H AH (Home)</th><th>Giá</th><th>OU 1H</th><th>Giá Over</th><th>Book</th><th>Cập nhật</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="empty" class="muted empty" style="display:none;">Không có trận nào khớp điều kiện lúc này.</div>
+  </div>
+  <footer>Auto‑refresh 30s • Built for Toàn Lê (HCM IT)</footer>
+  <script>
+    const HOOK = "https://toanle.app.n8n.cloud/webhook/inplay-ah-scanner"; // đổi nếu anh đặt path khác
+    const status = document.querySelector('#status');
+    const tbody  = document.querySelector('#tbl tbody');
+    const empty  = document.querySelector('#empty');
+
+    function fmtTime(s){return (s||"").replace("T"," ").replace("Z"," UTC")}
+    function draw(rows){
+      tbody.innerHTML = "";
+      if(!rows || !rows.length){
+        empty.style.display = "block";
+        status.textContent = "Không có trận nào khớp điều kiện.";
+        return;
+      }
+      empty.style.display = "none";
+      status.textContent = `Có ${rows.length} trận khớp điều kiện.`;
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.league ?? ""}</td>
+          <td>${r.minute ?? ""}'</td>
+          <td>${r.score ?? "0-0"}</td>
+          <td><b>${r.home}</b> vs ${r.away}</td>
+          <td><span class="tag">${r.ah_line}</span></td>
+          <td>${r.home_price ?? ""}</td>
+          <td>${r.ou_line ?? ""}</td>
+          <td>${r.ou_over_price ?? ""}</td>
+          <td>${r.bookmaker ?? ""}</td>
+          <td class="muted">${fmtTime(r.last_update)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function load(){
+      try{
+        status.textContent = "Đang tải dữ liệu…";
+        const res = await fetch(HOOK, {cache:"no-store"});
+        if(!res.ok) throw new Error(res.status+" "+res.statusText);
+        const rows = await res.json();
+        draw(rows);
+      }catch(e){
+        status.textContent = "Không truy cập được webhook n8n: " + e.message;
+        empty.style.display = "none";
+      }
+    }
+    load(); setInterval(load, 30000);
+  </script>
+</body>
+</html>
