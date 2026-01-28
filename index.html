@@ -5,36 +5,67 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Soi Kèo Thơm</title>
   <style>
-    :root{--bg:#0b1220;--fg:#e6edf3;--muted:#9aa7b3;--card:#131b2e;--accent:#4fc3f7;--tag:#202a44;--btn:#1f6feb}
+    :root{
+      --bg:#0b1220;--fg:#e6edf3;--muted:#9aa7b3;--card:#131b2e;--accent:#4fc3f7;
+      --tag:#202a44;--btn:#1f6feb;--ok:#25d366;--warn:#ffb020;--hot:#ffd166;
+      --danger:#ff5c5c
+    }
     html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,Segoe UI,Arial}
     header{padding:16px 20px;border-bottom:1px solid #1e2a44;background:#0f1830;position:sticky;top:0}
     h1{font-size:18px;margin:0}
     .wrap{max-width:1100px;margin:0 auto;padding:20px}
-    .toolbar{display:flex;gap:12px;align-items:center;margin:12px 0 16px}
+    .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0 14px}
     button{background:var(--btn);color:#fff;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
     button[disabled]{opacity:.6;cursor:not-allowed}
     .note{color:var(--muted);font-size:12px}
+    .ttl{color:#cde1ff;font-weight:700}
+    .countdown{color:#9cf;font-variant-numeric:tabular-nums;margin-left:6px}
+    .spinner{width:16px;height:16px;border:2px solid #305082;border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin 1s linear infinite;vertical-align:-3px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .cards{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .pill{background:#0f1830;border:1px solid #1f2a4a;color:#c9d7e1;border-radius:999px;padding:4px 8px;font-size:12px}
+    .pill.hot{background:#2a1c00;border-color:#614a00;color:#ffd166}
+
     table{width:100%;border-collapse:collapse;background:var(--card);border-radius:8px;overflow:hidden}
     th,td{padding:10px 12px;border-bottom:1px solid #1e2a44}
     th{font-weight:600;text-align:left;color:#c9d7e1;background:#101a33}
     tr:hover td{background:#0f1730}
     .muted{color:var(--muted)}
     .tag{background:var(--tag);color:#cbe6ff;padding:2px 6px;border-radius:6px;font-weight:600}
+    .hotRow td{background:rgba(255,209,102,.08)}
+    .hotBadge{background:linear-gradient(45deg,#ff8b00,#ffd166);color:#231;display:inline-block;padding:2px 6px;border-radius:6px;font-weight:800;margin-left:6px}
     .empty{padding:12px 0}
     footer{color:var(--muted);font-size:12px;padding:12px 20px;text-align:center}
+    .warn{color:var(--warn)}
+    .danger{color:var(--danger)}
+    .section-title{margin:18px 0 10px;font-weight:700;color:#c9d7e1}
+    .flex{display:flex;align-items:center;gap:8px}
+    .right{margin-left:auto}
+    .link{color:#7dc3ff;text-decoration:underline;cursor:pointer}
+    .sep{opacity:.25;margin:0 6px}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Soi Kèo Thơm</h1>
-  </header>
+  <header><h1>Soi Kèo Thơm</h1></header>
 
   <div class="wrap">
     <div class="toolbar">
-      <button id="btnFetch">Lấy Kèo Thơm</button>
-      <span id="status" class="muted">Bấm “Lấy Kèo Thơm” để cập nhật dữ liệu.</span>
+      <div class="cards">
+        <button id="btnFetch"><span id="btnIcon">🔎</span> Lấy Kèo Thơm</button>
+        <span id="status" class="note">Bấm “Lấy Kèo Thơm” để cập nhật dữ liệu.</span>
+        <span id="loading" style="display:none"><span class="spinner"></span> Đang tải…</span>
+      </div>
+      <div class="right note">
+        TTL cache: <span class="ttl" id="ttlVal">20s</span>
+        <span class="sep">•</span>
+        <span>Đếm ngược: <span id="countdown" class="countdown">00s</span></span>
+        <span class="sep">•</span>
+        <span id="cacheInfo" class="note"></span>
+      </div>
     </div>
 
+    <!-- Bảng kèo hợp lệ -->
     <table id="tbl">
       <thead>
         <tr>
@@ -45,24 +76,88 @@
       <tbody></tbody>
     </table>
     <div id="empty" class="muted empty" style="display:none;">Chưa có dữ liệu hiển thị.</div>
+
+    <!-- Bảng không match ID -->
+    <div class="section-title">Không khớp Match ID (cần kiểm tra alias/tên đội)</div>
+    <table id="tblUnmatched">
+      <thead>
+        <tr>
+          <th>Giải</th><th>Phút</th><th>Tỷ số</th><th>Trận</th><th class="danger">Lý do</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="emptyUn" class="muted empty" style="display:none;">Không có trận nào bị thiếu matchId.</div>
   </div>
 
   <footer>Trigger thủ công từ trình duyệt • Xây cho Toàn Lê</footer>
 
   <script>
-    // 🔧 SỬA CHO PHÙ HỢP MÔI TRƯỜNG CỦA ANH:
-    // 1) HOOK_REFRESH: webhook mới (GET/POST) để "chạy pipeline & trả kết quả"
-    const HOOK_REFRESH = "https://toanle.app.n8n.cloud/webhook-test/inplay-ah-scanner/run"; // <-- ĐỔI đúng endpoint anh tạo ở bước 2
-    // 2) (tuỳ chọn) HOOK_READ: webhook cũ "đọc cache" nếu anh muốn giữ
-    // const HOOK_READ = "https://toanle.app.n8n.cloud/webhook/inplay-ah-scanner";
+    // ====== CẤU HÌNH ======
+    // ĐỔI đúng endpoint workflow Webhook mới: /webhook/inplay-ah-scanner/run
+    const HOOK_REFRESH = "https://toanle.app.n8n.cloud/webhook-test/inplay-ah-scanner/run";
 
+    // Cache TTL (giây)
+    const CACHE_TTL = 20; // 20s để tránh spam n8n khi F5
+    const CACHE_KEY = "inplay-cache-v1"; // key cho sessionStorage
+
+    // ====== PHẦN TỬ UI ======
     const statusEl = document.querySelector('#status');
     const btn = document.querySelector('#btnFetch');
-    const tbody  = document.querySelector('#tbl tbody');
-    const empty  = document.querySelector('#empty');
+    const btnIcon = document.querySelector('#btnIcon');
+    const tbody = document.querySelector('#tbl tbody');
+    const empty = document.querySelector('#empty');
+    const tbodyUn = document.querySelector('#tblUnmatched tbody');
+    const emptyUn = document.querySelector('#emptyUn');
+    const loadingEl = document.querySelector('#loading');
+    const countdownEl = document.querySelector('#countdown');
+    const ttlValEl = document.querySelector('#ttlVal');
+    const cacheInfoEl = document.querySelector('#cacheInfo');
 
-    function fmtTime(s){return (s||"").replace("T"," ").replace("Z"," UTC")}
-    function draw(rows){
+    ttlValEl.textContent = CACHE_TTL + "s";
+
+    // ====== HỖ TRỢ: format & UI ======
+    function fmtTime(s){ return (s||"").replace("T"," ").replace("Z"," UTC"); }
+    function nowTs(){ return Date.now(); }
+    function to2(n){ n = Math.max(0, n|0); return n < 10 ? "0"+n : ""+n; }
+
+    // ====== CACHE ======
+    function saveCache(payload){
+      const pack = { ts: nowTs(), data: payload };
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(pack));
+    }
+    function getCache(){
+      try{
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        if(!raw) return null;
+        const obj = JSON.parse(raw);
+        return obj;
+      }catch(e){ return null; }
+    }
+    function isCacheValid(pack){
+      if(!pack || !pack.ts) return false;
+      return (nowTs() - pack.ts) <= CACHE_TTL * 1000;
+    }
+
+    // ====== COUNTDOWN ======
+    let countdownTimer = null;
+    function startCountdown(fromTs){
+      stopCountdown();
+      const target = fromTs + CACHE_TTL*1000;
+      function tick(){
+        const remain = Math.max(0, Math.ceil((target - nowTs())/1000));
+        countdownEl.textContent = `${to2(remain)}s`;
+        if(remain <= 0) stopCountdown();
+      }
+      countdownTimer = setInterval(tick, 250);
+      tick();
+    }
+    function stopCountdown(){
+      if(countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; }
+    }
+
+    // ====== VẼ BẢNG ======
+    function drawMatched(rows){
       tbody.innerHTML = "";
       if(!rows || !rows.length){
         empty.style.display = "block";
@@ -73,11 +168,16 @@
       statusEl.textContent = `Có ${rows.length} trận khớp điều kiện.`;
       rows.forEach(r=>{
         const tr = document.createElement('tr');
+
+        // Highlight kèo thơm: AH ≥ 1.25 & OU ≤ 1.25
+        const isHot = (Number(r.ah_line) >= 1.25) && (Number(r.ou_line) <= 1.25);
+        if(isHot) tr.classList.add('hotRow');
+
         tr.innerHTML = `
           <td>${r.league ?? ""}</td>
           <td>${r.minute ?? ""}'</td>
           <td>${r.score ?? "0-0"}</td>
-          <td><b>${r.home}</b> vs ${r.away}</td>
+          <td><b>${r.home}</b> vs ${r.away} ${isHot ? '<span class="hotBadge">🔥 HOT</span>' : ''}</td>
           <td><span class="tag">${r.ah_line ?? ""}</span></td>
           <td>${r.home_price ?? ""}</td>
           <td>${r.ou_line ?? ""}</td>
@@ -89,26 +189,131 @@
       });
     }
 
-    async function fetchFresh() {
+    function drawUnmatched(rows){
+      tbodyUn.innerHTML = "";
+      if(!rows || !rows.length){
+        emptyUn.style.display = "block";
+        return;
+      }
+      emptyUn.style.display = "none";
+      rows.forEach(r=>{
+        const reason = (!r.matchId) ? "Không khớp matchId (fallback theo tên đội không tìm thấy)"
+                                    : "Không đạt điều kiện kèo (thiếu odds hợp lệ)";
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.league ?? ""}</td>
+          <td>${r.minute ?? ""}'</td>
+          <td>${r.score ?? "0-0"}</td>
+          <td><b>${r.home}</b> vs ${r.away}</td>
+          <td class="danger">${reason}</td>
+        `;
+        tbodyUn.appendChild(tr);
+      });
+    }
+
+    function normalizeResponse(rows){
+      // N8N có thể trả object hoặc mảng; ép về mảng an toàn
+      if(Array.isArray(rows)) return rows;
+      if(rows && typeof rows === 'object') return [rows];
+      return [];
+    }
+
+    function splitMatched(rows){
+      const matched = [];
+      const unmatched = [];
+      for(const r of rows){
+        // coi như matched khi có đủ hai line odds
+        const hasOdds = r && (r.ah_line !== undefined && r.ou_line !== undefined);
+        if(!r || r.matchId === null || r.matchId === undefined){
+          unmatched.push(r);
+        }else if(hasOdds){
+          matched.push(r);
+        }else{
+          // có matchId nhưng không đạt filter odds => đẩy vào unmatched kèm lý do
+          unmatched.push({...r, reason: "missing-odds"});
+        }
+      }
+      return { matched, unmatched };
+    }
+
+    // ====== FETCH ======
+    async function callWebhook(){
+      // Mặc định GET; nếu backend yêu cầu POST, fallback thử POST
+      const tryGet = async () => {
+        const res = await fetch(HOOK_REFRESH, { method: "GET", cache: "no-store" });
+        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        return res.json();
+      };
+      const tryPost = async () => {
+        const res = await fetch(HOOK_REFRESH, {
+          method: "POST",
+          headers: { "Content-Type":"application/json" },
+          body: "{}",
+          cache: "no-store"
+        });
+        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        return res.json();
+      };
+
+      try{
+        return await tryGet();
+      }catch(e){
+        // Fallback sang POST nếu GET không được (ví dụ 405)
+        return await tryPost();
+      }
+    }
+
+    async function fetchFresh(){
       try{
         btn.disabled = true;
+        btnIcon.textContent = "⏳";
+        loadingEl.style.display = "inline-block";
         statusEl.textContent = "Đang lấy dữ liệu kèo…";
-        // Nếu n8n dùng POST thì đổi method và thêm headers phù hợp
-        const res = await fetch(HOOK_REFRESH, { method: "GET", cache:"no-store" });
-        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const rows = await res.json();
-        draw(rows);
+
+        const rows = normalizeResponse(await callWebhook());
+        // Lưu cache
+        saveCache(rows);
+        // Render
+        const {matched, unmatched} = splitMatched(rows);
+        drawMatched(matched);
+        drawUnmatched(unmatched);
+        // Cập nhật thông tin cache & countdown
+        cacheInfoEl.textContent = "Đã làm mới lúc: " + new Date().toLocaleTimeString();
+        startCountdown(nowTs());
       }catch(e){
         statusEl.textContent = "Lỗi khi lấy dữ liệu: " + e.message;
         empty.style.display = "none";
       }finally{
         btn.disabled = false;
+        btnIcon.textContent = "🔎";
+        loadingEl.style.display = "none";
+      }
+    }
+
+    // ====== KHỞI TẠO ======
+    function initFromCache(){
+      const pack = getCache();
+      if(pack && pack.data){
+        const valid = isCacheValid(pack);
+        const rows = normalizeResponse(pack.data);
+        const {matched, unmatched} = splitMatched(rows);
+        drawMatched(matched);
+        drawUnmatched(unmatched);
+        cacheInfoEl.textContent = valid
+          ? ("Đang hiển thị cache (" + new Date(pack.ts).toLocaleTimeString() + ")")
+          : "Cache đã hết hạn";
+        // countdown từ thời điểm cache
+        startCountdown(pack.ts);
+      }else{
+        empty.style.display = "block";
+        emptyUn.style.display = "block";
       }
     }
 
     document.getElementById('btnFetch').addEventListener('click', fetchFresh);
+
+    // Lần đầu tải trang: hiển thị cache nếu còn hạn để tránh gọi n8n
+    initFromCache();
   </script>
 </body>
 </html>
-
-
