@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Soi Kèo Thơm</title>
+  <style>
+    :root{--bg:#0b1220;--fg:#e6edf3;--muted:#9aa7b3;--card:#131b2e;--accent:#4fc3f7;--tag:#202a44;--btn:#1f6feb}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,Segoe UI,Arial}
+    header{padding:16px 20px;border-bottom:1px solid #1e2a44;background:#0f1830;position:sticky;top:0}
+    h1{font-size:18px;margin:0}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+    .toolbar{display:flex;gap:12px;align-items:center;margin:12px 0 16px}
+    button{background:var(--btn);color:#fff;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
+    button[disabled]{opacity:.6;cursor:not-allowed}
+    .note{color:var(--muted);font-size:12px}
+    table{width:100%;border-collapse:collapse;background:var(--card);border-radius:8px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px solid #1e2a44}
+    th{font-weight:600;text-align:left;color:#c9d7e1;background:#101a33}
+    tr:hover td{background:#0f1730}
+    .muted{color:var(--muted)}
+    .tag{background:var(--tag);color:#cbe6ff;padding:2px 6px;border-radius:6px;font-weight:600}
+    .empty{padding:12px 0}
+    footer{color:var(--muted);font-size:12px;padding:12px 20px;text-align:center}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Soi Kèo Thơm</h1>
+  </header>
+
+  <div class="wrap">
+    <div class="toolbar">
+      <button id="btnFetch">Lấy Kèo Thơm</button>
+      <span id="status" class="muted">Bấm “Lấy Kèo Thơm” để cập nhật dữ liệu.</span>
+    </div>
+
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>Giải</th><th>Phút</th><th>Tỷ số</th><th>Trận</th>
+          <th>FT AH (Home)</th><th>Giá</th><th>FT OU</th><th>Giá Over</th><th>Book</th><th>Cập nhật</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="empty" class="muted empty" style="display:none;">Chưa có dữ liệu hiển thị.</div>
+  </div>
+
+  <footer>Trigger thủ công từ trình duyệt • Xây cho Toàn Lê (HCM IT)</footer>
+
+  <script>
+    // 🔧 SỬA CHO PHÙ HỢP MÔI TRƯỜNG CỦA ANH:
+    // 1) HOOK_REFRESH: webhook mới (GET/POST) để "chạy pipeline & trả kết quả"
+    const HOOK_REFRESH = "https://toanle.app.n8n.cloud/webhook/refresh-inplay"; // <-- ĐỔI đúng endpoint anh tạo ở bước 2
+    // 2) (tuỳ chọn) HOOK_READ: webhook cũ "đọc cache" nếu anh muốn giữ
+    // const HOOK_READ = "https://toanle.app.n8n.cloud/webhook/inplay-ah-scanner";
+
+    const statusEl = document.querySelector('#status');
+    const btn = document.querySelector('#btnFetch');
+    const tbody  = document.querySelector('#tbl tbody');
+    const empty  = document.querySelector('#empty');
+
+    function fmtTime(s){return (s||"").replace("T"," ").replace("Z"," UTC")}
+    function draw(rows){
+      tbody.innerHTML = "";
+      if(!rows || !rows.length){
+        empty.style.display = "block";
+        statusEl.textContent = "Không có trận nào khớp điều kiện lúc này.";
+        return;
+      }
+      empty.style.display = "none";
+      statusEl.textContent = `Có ${rows.length} trận khớp điều kiện.`;
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.league ?? ""}</td>
+          <td>${r.minute ?? ""}'</td>
+          <td>${r.score ?? "0-0"}</td>
+          <td><b>${r.home}</b> vs ${r.away}</td>
+          <td><span class="tag">${r.ah_line ?? ""}</span></td>
+          <td>${r.home_price ?? ""}</td>
+          <td>${r.ou_line ?? ""}</td>
+          <td>${r.ou_over_price ?? ""}</td>
+          <td>${r.ah_bookmaker || r.ou_bookmaker || ""}</td>
+          <td class="muted">${fmtTime(r.last_update)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function fetchFresh() {
+      try{
+        btn.disabled = true;
+        statusEl.textContent = "Đang lấy dữ liệu kèo…";
+        // Nếu n8n dùng POST thì đổi method và thêm headers phù hợp
+        const res = await fetch(HOOK_REFRESH, { method: "GET", cache:"no-store" });
+        if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const rows = await res.json();
+        draw(rows);
+      }catch(e){
+        statusEl.textContent = "Lỗi khi lấy dữ liệu: " + e.message;
+        empty.style.display = "none";
+      }finally{
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById('btnFetch').addEventListener('click', fetchFresh);
+  </script>
+</body>
+</html>
