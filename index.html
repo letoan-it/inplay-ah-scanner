@@ -47,12 +47,12 @@
     <div id="empty" class="muted empty" style="display:none;">Chưa có dữ liệu hiển thị.</div>
   </div>
 
-  <footer>Trigger thủ công từ trình duyệt • Xây cho Toàn Lê (HCM IT)</footer>
+  <footer>Trigger thủ công từ trình duyệt • Xây cho Toàn Lê</footer>
 
   <script>
     // 🔧 SỬA CHO PHÙ HỢP MÔI TRƯỜNG CỦA ANH:
     // 1) HOOK_REFRESH: webhook mới (GET/POST) để "chạy pipeline & trả kết quả"
-    const HOOK_REFRESH = "https://toanle.app.n8n.cloud/webhook-test/refresh-inplay"; // <-- ĐỔI đúng endpoint anh tạo ở bước 2
+    const HOOK_REFRESH = "https://toanle.app.n8n.cloud/webhook-test/inplay-ah-scanner/run"; // <-- ĐỔI đúng endpoint anh tạo ở bước 2
     // 2) (tuỳ chọn) HOOK_READ: webhook cũ "đọc cache" nếu anh muốn giữ
     // const HOOK_READ = "https://toanle.app.n8n.cloud/webhook/inplay-ah-scanner";
 
@@ -110,4 +110,5 @@
   </script>
 </body>
 </html>
+
 
